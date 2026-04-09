@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: estate-ledger-server
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI_PRIMARY
+        sync: false
+      - key: MONGODB_URI_BACKUP
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
