@@ -33,34 +33,39 @@ export class PaymentsService {
     };
     const step = intervalMonths[contract.paymentInterval] || 1;
     const payments: Partial<Payment>[] = [];
-    let current = new Date(contract.startDate);
+    const start = new Date(contract.startDate);
+    const startDay = start.getUTCDate();
     const end = new Date(contract.endDate);
+    let periodIndex = 0;
 
-    while (current < end) {
-      const start = new Date(contract.startDate);
-      let yearsPassed = current.getFullYear() - start.getFullYear();
-      const monthDiff = current.getMonth() - start.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && current.getDate() < start.getDate())) {
-        yearsPassed--;
-      }
-      yearsPassed = Math.max(0, yearsPassed);
+    while (true) {
+      // Derive each date from the original start to avoid cumulative drift
+      const date = new Date(start);
+      date.setUTCMonth(start.getUTCMonth() + periodIndex * step);
+      // Clamp day to the last day of the target month if needed
+      const lastDayOfMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+      date.setUTCDate(Math.min(startDay, lastDayOfMonth));
+
+      if (date >= end) break;
+
+      const monthsElapsed = periodIndex * step;
+      const yearsPassed = Math.max(0, Math.floor(monthsElapsed / 12));
       const multiplier = Math.pow(1 + contract.annualIncrease / 100, yearsPassed);
       const amount = Math.round(contract.rent * multiplier * 100) / 100;
-      const id = new Types.ObjectId()
+      const id = new Types.ObjectId();
 
       payments.push({
         _id: id,
         contractId: contract._id,
         propertyId: contract.propertyId,
         tenantId: contract.tenantId,
-        month: new Date(current),
+        month: new Date(date),
         amount,
-        dueDate: new Date(current),
+        dueDate: new Date(date),
         paidDate: null,
       });
 
-      current = new Date(current);
-      current.setMonth(current.getMonth() + step);
+      periodIndex++;
     }
 
     const [primaryResult, backupResult] = await Promise.allSettled([
