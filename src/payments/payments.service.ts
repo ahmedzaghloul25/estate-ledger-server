@@ -79,7 +79,7 @@ export class PaymentsService {
         tenantId: contract.tenantId,
         month: new Date(Date.UTC(targetYear, targetMonth, 1)),
         amount,
-        dueDate: new Date(date),
+        dueDate: periodIndex === 0 ? new Date(start) : new Date(date),
         paidDate: null,
       });
 
