@@ -48,6 +48,9 @@ export class Contract {
 
   @Prop({ default: false })
   isEarlyTerminated: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  isExpired: boolean;
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);
@@ -55,3 +58,4 @@ ContractSchema.index({ tenantId: 1 });
 ContractSchema.index({ propertyId: 1 });
 ContractSchema.index({ status: 1 });
 ContractSchema.index({ endDate: 1 });
+ContractSchema.index({ isExpired: 1 });

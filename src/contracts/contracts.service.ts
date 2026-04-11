@@ -1,8 +1,9 @@
 import {
-  Injectable, NotFoundException, BadRequestException,
+  Injectable, NotFoundException, BadRequestException, Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Cron } from '@nestjs/schedule';
 import {
   Contract, ContractDocument, ContractStatus,
 } from './schemas/contract.schema';
@@ -15,6 +16,8 @@ import { PropertyStatus } from '../properties/schemas/property.schema';
 
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+
   constructor(
     @InjectModel(Contract.name, 'primary') private primaryModel: Model<ContractDocument>,
     @InjectModel(Contract.name, 'backup') private backupModel: Model<ContractDocument>,
@@ -37,7 +40,7 @@ export class ContractsService {
   }
 
   async findAll(status?: string): Promise<ContractDocument[]> {
-    const contracts = await this.primaryModel.find().sort({ createdAt: -1 }).populate(['tenantId', 'propertyId']).exec();
+    const contracts = await this.primaryModel.find({ isExpired: { $ne: true } }).sort({ createdAt: -1 }).populate(['tenantId', 'propertyId']).exec();
     const computed = contracts.map((c) => this.applyComputedStatus(c));
     if (status) return computed.filter((c) => c.status === status);
     return computed;
@@ -53,6 +56,7 @@ export class ContractsService {
     const existingContract = await this.primaryModel.findOne({
       propertyId: new Types.ObjectId(dto.propertyId),
       status: { $ne: ContractStatus.TERMINATED },
+      isExpired: { $ne: true },
       endDate: { $gte: new Date() },
     }).exec();
 
@@ -150,5 +154,37 @@ export class ContractsService {
 
     await contract.populate(['tenantId', 'propertyId']);
     return contract;
+  }
+
+  @Cron('0 0 1 * *')
+  async softDeleteExpiredContracts(): Promise<void> {
+    const now = new Date();
+    const filter = {
+      endDate: { $lt: now },
+      status: { $ne: ContractStatus.TERMINATED },
+      isExpired: { $ne: true },
+    };
+
+    const expiredContracts = await this.primaryModel.find(filter).exec();
+    if (expiredContracts.length === 0) return;
+
+    const ids = expiredContracts.map((c) => c._id);
+    const update = { isExpired: true, status: ContractStatus.EXPIRED };
+
+    const [primaryResult, backupResult] = await Promise.allSettled([
+      this.primaryModel.updateMany({ _id: { $in: ids } }, update).exec(),
+      this.backupModel.updateMany({ _id: { $in: ids } }, update).exec(),
+    ]);
+    if (backupResult.status === 'rejected') {
+      this.logger.error('[Backup DB] softDeleteExpiredContracts failed:', backupResult.reason);
+    }
+    if (primaryResult.status === 'rejected') throw primaryResult.reason;
+
+    const propertyIds = [...new Set(expiredContracts.map((c) => c.propertyId.toString()))];
+    for (const propertyId of propertyIds) {
+      await this.propertiesService.updateStatus(propertyId, PropertyStatus.AVAILABLE);
+    }
+
+    this.logger.log(`Soft-deleted ${expiredContracts.length} expired contracts`);
   }
 }
