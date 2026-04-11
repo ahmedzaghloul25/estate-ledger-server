@@ -77,7 +77,7 @@ export class PaymentsService {
         contractId: contract._id,
         propertyId: contract.propertyId,
         tenantId: contract.tenantId,
-        month: new Date(date),
+        month: new Date(Date.UTC(targetYear, targetMonth, 1)),
         amount,
         dueDate: new Date(date),
         paidDate: null,
