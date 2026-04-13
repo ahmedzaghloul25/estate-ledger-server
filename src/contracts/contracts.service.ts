@@ -34,6 +34,12 @@ export class ContractsService {
     return ContractStatus.ACTIVE;
   }
 
+  /** Strip timezone offset — store dates as midnight UTC matching the intended local date. */
+  private normalizeDateToUTC(dateStr: string): Date {
+    const dateOnly = dateStr.substring(0, 10); // "2025-10-15"
+    return new Date(dateOnly + 'T00:00:00.000Z');
+  }
+
   private applyComputedStatus(contract: ContractDocument): ContractDocument {
     contract.status = this.computeContractStatus(contract);
     return contract;
@@ -74,8 +80,8 @@ export class ContractsService {
       paymentInterval: dto.paymentInterval,
       securityDeposit: dto.securityDeposit ?? 0,
       annualIncrease: dto.annualIncrease ?? 0,
-      startDate: new Date(dto.startDate),
-      endDate: new Date(dto.endDate),
+      startDate: this.normalizeDateToUTC(dto.startDate),
+      endDate: this.normalizeDateToUTC(dto.endDate),
     };
 
     const [primaryResult, backupResult] = await Promise.allSettled([
@@ -107,9 +113,13 @@ export class ContractsService {
   }
 
   async update(id: string, dto: UpdateContractDto): Promise<ContractDocument> {
+    const updateData: any = { ...dto };
+    if (dto.startDate) updateData.startDate = this.normalizeDateToUTC(dto.startDate);
+    if (dto.endDate) updateData.endDate = this.normalizeDateToUTC(dto.endDate);
+
     const [primaryResult, backupResult] = await Promise.allSettled([
-      this.primaryModel.findByIdAndUpdate(id, dto, { new: true }).populate(['tenantId', 'propertyId']).exec(),
-      this.backupModel.findByIdAndUpdate(id, dto).exec(),
+      this.primaryModel.findByIdAndUpdate(id, updateData, { new: true }).populate(['tenantId', 'propertyId']).exec(),
+      this.backupModel.findByIdAndUpdate(id, updateData).exec(),
     ]);
     if (backupResult.status === 'rejected') {
       console.error('[Backup DB] contract update failed:', backupResult.reason);
@@ -130,7 +140,7 @@ export class ContractsService {
       throw new BadRequestException('Contract is already terminated or expired');
     }
 
-    const terminationDate = dto.terminationDate ? new Date(dto.terminationDate) : new Date();
+    const terminationDate = dto.terminationDate ? this.normalizeDateToUTC(dto.terminationDate) : new Date();
     contract.isEarlyTerminated = true;
     contract.status = ContractStatus.TERMINATED;
     contract.endDate = terminationDate;

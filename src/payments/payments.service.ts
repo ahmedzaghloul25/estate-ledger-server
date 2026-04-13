@@ -36,24 +36,14 @@ export class PaymentsService {
     const start = new Date(contract.startDate);
     const end = new Date(contract.endDate);
 
-    // Recover the intended local date from the UTC-stored timestamp.
-    // Clients send dates as local midnight (e.g. 2025-07-01T00:00:00+03:00),
-    // which gets stored as 2025-06-30T21:00:00Z. If the UTC hour is >= 12,
-    // the local date is one day ahead of the UTC date.
-    const normalizedStart = new Date(Date.UTC(
-      start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(),
-    ));
-    if (start.getUTCHours() >= 12) {
-      normalizedStart.setUTCDate(normalizedStart.getUTCDate() + 1);
-    }
-    const offsetMs = normalizedStart.getTime() - start.getTime();
-    const startDay = normalizedStart.getUTCDate();
-    const startMonth = normalizedStart.getUTCMonth();
-    const startYear = normalizedStart.getUTCFullYear();
+    // Contract dates are already normalized to midnight UTC (e.g. 2025-10-15T00:00:00Z),
+    // so we can use UTC methods directly without any offset math.
+    const startDay = start.getUTCDate();
+    const startMonth = start.getUTCMonth();
+    const startYear = start.getUTCFullYear();
     let periodIndex = 0;
 
     while (true) {
-      // Compute the target local year/month from the original start
       const totalMonths = startMonth + periodIndex * step;
       const targetYear = startYear + Math.floor(totalMonths / 12);
       const targetMonth = totalMonths % 12;
@@ -61,9 +51,7 @@ export class PaymentsService {
       // Clamp day to the last day of the target month (e.g. Jan 31 → Feb 28)
       const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
       const targetDay = Math.min(startDay, lastDay);
-
-      // Convert local midnight back to UTC by subtracting the offset
-      const date = new Date(Date.UTC(targetYear, targetMonth, targetDay) - offsetMs);
+      const date = new Date(Date.UTC(targetYear, targetMonth, targetDay));
 
       if (date >= end) break;
 
