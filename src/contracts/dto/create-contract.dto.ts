@@ -1,6 +1,7 @@
 import {
   IsString, IsNotEmpty, IsNumber, IsDateString, IsEnum, IsOptional, Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentInterval } from '../schemas/contract.schema';
 
 export class CreateContractDto {
@@ -30,8 +31,10 @@ export class CreateContractDto {
   annualIncrease?: number;
 
   @IsDateString()
+  @Type(() => String)
   startDate: string;
 
   @IsDateString()
+  @Type(() => String)
   endDate: string;
 }

@@ -34,10 +34,30 @@ export class ContractsService {
     return ContractStatus.ACTIVE;
   }
 
-  /** Strip timezone offset — store dates as midnight UTC matching the intended local date. */
-  private normalizeDateToUTC(dateStr: string): Date {
-    const dateOnly = dateStr.substring(0, 10); // "2025-10-15"
-    return new Date(dateOnly + 'T00:00:00.000Z');
+  /**
+   * Normalize a date to midnight UTC matching the intended local date.
+   * Handles both string and Date inputs (ValidationPipe transform may convert).
+   *
+   * The client sends dates from a calendar picker as midnight local time, which
+   * arrives as either an offset string ("2024-01-01T00:00:00+03:00") or a
+   * UTC-converted string ("2023-12-31T21:00:00.000Z"). In both cases, JS parses
+   * to the same UTC instant. If UTC hours >= 12, the intended local date is the
+   * next UTC day — round up to recover it.
+   */
+  private normalizeDateToUTC(dateInput: string | Date): Date {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    let year = d.getUTCFullYear();
+    let month = d.getUTCMonth();
+    let day = d.getUTCDate();
+
+    if (d.getUTCHours() >= 12) {
+      const next = new Date(Date.UTC(year, month, day + 1));
+      year = next.getUTCFullYear();
+      month = next.getUTCMonth();
+      day = next.getUTCDate();
+    }
+
+    return new Date(Date.UTC(year, month, day));
   }
 
   private applyComputedStatus(contract: ContractDocument): ContractDocument {

@@ -1,4 +1,5 @@
 import { IsOptional, IsNumber, IsDateString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateContractDto {
   @IsOptional()
@@ -8,9 +9,11 @@ export class UpdateContractDto {
 
   @IsOptional()
   @IsDateString()
+  @Type(() => String)
   startDate?: string;
 
   @IsOptional()
   @IsDateString()
+  @Type(() => String)
   endDate?: string;
 }
